@@ -1,0 +1,66 @@
+@startuml
+
+
+' ===== Futures Insturments =====
+class future_object {
+
+}
+
+class futuresInstrument {
+    +instrument_code: str <<property>>
+    +key: str <<property>>
+
+    +create_from_dict() <<classmethod>
+    +as_dict() <<method>>
+    +empty() <<method>>
+
+}
+
+class futuresInstrumentCosts {
+
+}
+
+class futuresContractMetaData <<dataclass>> {
+
+    +contract_ticker: str <<data_point>>
+    +contract_long_name: str <<data_point>>
+    +contract_first_notice: datetime <<data_point>>
+    +contract_last_tradable: datetime <<data_point>>
+    +contract_last_delivery: datetime <<data_point>>
+    +contract_month_year: str <<data_point>
+    +contract_exchange_symbol: str <<data_point>>
+    +contract_exchange_trade_status: str <<data_point>>
+    +contract_exchange_name: str <<data_point>>
+    +contract_aggregate_volume: float <<data_point>>
+
+}
+
+class futuresInstrumentMetaData <<dataclass>> {
+
+   +future_ticker: str <<data_point>>
+   +future_asset_class: str <<data_point>>
+   +future_exchange_id: str <<data_point>>
+   +future_trade_months: str <<data_point>>
+   +future_contract_size: float <<data_point>>
+   +future_tick_size: float <<data_point>>
+   +future_tick_value: float <<data_point>>
+   +future_price_multiplier: float <<data_point>>
+   +future_nominal_contract_value: float <<data_point>>
+   +future_first_trade_date: datetime <<data_point>>
+   +future_trading_hours: string <<data_point>>
+   +future_currency: str <<data_point>>
+   +future_number_ticks: float <<data_point>>
+}
+
+
+class futuresInstrumentWithMetaData <<dataclass>> {
+
+}
+
+
+
+futuresInstrumentWithMetaData *-- futuresInstrument
+futuresInstrumentWithMetaData *-- futuresInstrumentMetaData
+
+
+@enduml

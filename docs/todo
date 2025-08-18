@@ -1,0 +1,30 @@
+## Research ##
+- enums purpose and use cases
+- varypes for schemas & constants
+
+
+
+############################################
+#### DATA LOADING ####
+- Need to merge futures meta into contract meta and use single metadata dataframe
+- Need to finalize datareader for parquet, csv, and ods.
+
+#### FUTURE OBJECTS ####
+# Future Instruments Objects
+- FutureInstument
+- FutureMetaData
+- FutureInstrumentWithMetaData (Instrument + MetaData)
+- ListOfFutureInstrumentsWithMetaData
+
+# Contract Objects
+- FutureContract (Dates + Instrument)
+- ExpiryDate, ContractDate, LastTradableDate,
+OPTIONAL: parametersForFutreContract
+
+- ListOfFutureContracts
+- DictOfFutureContractPrices
+- DictOfNamedFutureContractPrices
+
+# Roll Objects
+- RollCalendar (DictOfFutureContractPrices + RollParameters) /
+- RollParameters / ContractDateWithRollParameters (RollParameters + ContractDate)

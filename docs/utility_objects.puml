@@ -1,0 +1,34 @@
+@startuml
+
+' ===== Abstract Families =====
+abstract class DataReader {
+    -validate_path()
+    +write()
+    +read()
+    +list_files()
+note: Abstract Data Reader
+
+}
+
+
+
+' ===== Implementable Base Classes =====
+class BaseDataReader
+
+
+' ===== Concrete Implementations =====
+class CSVDataReader
+
+
+class ParquetDataReader
+
+
+class ODSDataReader
+
+' ===== Hierarchies =====
+DataReader <|-- BaseDataReader
+BaseDataReader <|-- ParquetDataReader
+BaseDataReader <|-- CSVDataReader
+BaseDataReader <|-- ODSDataReader
+
+@enduml

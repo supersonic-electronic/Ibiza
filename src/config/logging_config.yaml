@@ -1,0 +1,121 @@
+# src/config/logging_config.yaml
+# Single logging configuration file with environment-specific sections
+
+# Development Environment Configuration
+dev:
+  logging:
+    version: 1
+    disable_existing_loggers: false
+
+    global:
+      level: DEBUG
+      format: "%(asctime)s - %(name)s - %(levelname)s - %(funcName)s:%(lineno)d - %(message)s"
+      date_format: "%Y-%m-%d %H:%M:%S"
+
+    handlers:
+      console:
+        enabled: true
+        level: DEBUG
+        format: "%(asctime)s - %(name)s - %(levelname)s - %(funcName)s:%(lineno)d - %(message)s"
+
+      file:
+        enabled: true
+        level: DEBUG
+        path: "logs/application.log"
+        max_size: "10MB"
+        backup_count: 5
+        format: "%(asctime)s - %(name)s - %(levelname)s - %(funcName)s:%(lineno)d - %(message)s"
+
+      error_file:
+        enabled: true
+        level: ERROR
+        path: "logs/errors.log"
+        max_size: "5MB"
+        backup_count: 10
+        format: "%(asctime)s - %(name)s - %(levelname)s - %(funcName)s:%(lineno)d - %(message)s"
+
+    modules:
+      data_readers:
+        level: DEBUG
+        handlers: ["console", "file"]
+
+---
+
+# Test Environment Configuration
+test:
+  logging:
+    version: 1
+    disable_existing_loggers: false
+
+    global:
+      level: WARNING
+      format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+      date_format: "%Y-%m-%d %H:%M:%S"
+
+    handlers:
+      console:
+        enabled: true
+        level: WARNING
+        format: "%(name)s - %(levelname)s - %(message)s"
+
+      file:
+        enabled: false  # Disable file logging in tests by default
+
+      error_file:
+        enabled: true
+        level: ERROR
+        path: "logs/test_errors.log"
+        max_size: "1MB"
+        backup_count: 2
+        format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+
+    modules:
+      data_readers:
+        level: ERROR
+        handlers: ["console"]
+
+---
+
+# Production Environment Configuration
+prod:
+  logging:
+    version: 1
+    disable_existing_loggers: false
+
+    global:
+      level: INFO
+      format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+      date_format: "%Y-%m-%d %H:%M:%S"
+
+    handlers:
+      console:
+        enabled: false  # No console output in production
+
+      file:
+        enabled: true
+        level: INFO
+        path: "/var/log/application/application.log"
+        max_size: "50MB"
+        backup_count: 10
+        format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+
+      error_file:
+        enabled: true
+        level: WARNING
+        path: "/var/log/application/errors.log"
+        max_size: "20MB"
+        backup_count: 20
+        format: "%(asctime)s - %(name)s - %(levelname)s - %(funcName)s:%(lineno)d - %(message)s"
+
+      critical_file:
+        enabled: true
+        level: CRITICAL
+        path: "/var/log/application/critical.log"
+        max_size: "10MB"
+        backup_count: 50
+        format: "%(asctime)s - %(name)s - %(levelname)s - %(funcName)s:%(lineno)d - %(message)s"
+
+    modules:
+      data_readers:
+        level: WARNING
+        handlers: ["file", "error_file"]
