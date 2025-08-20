@@ -20,7 +20,7 @@ class futuresInstrumentCosts {
 
 }
 
-class futuresContractMetaData <<dataclass>> {
+class futuresInstrumentMetaData <<dataclass>> {
 
     +contract_ticker: str <<data_point>>
     +contract_long_name: str <<data_point>>

@@ -92,20 +92,23 @@ class LoggingConfig:
     @classmethod
     def _find_environment_config(cls, all_configs: List[Dict[str, Any]], environment: Environment) -> Dict[str, Any]:
         """Find configuration for specific environment from YAML documents."""
-        # For single file with multiple environment sections
-        # We'll look for environment-specific config in the YAML structure
-        # This assumes the YAML has sections or we use the first config and adapt it
-
         if not all_configs:
             raise ValueError("No configuration found in YAML file")
 
-        # For now, use the first config (you can extend this to handle multiple environments in one file)
-        base_config = all_configs[0]
-
-        # You could extend this to look for environment-specific overrides
-        # For example: base_config.get(environment.value, base_config)
-
-        return base_config
+        # Look for the environment-specific configuration
+        env_value = environment.value
+        
+        # Search through all YAML documents for the target environment
+        for config_doc in all_configs:
+            if env_value in config_doc:
+                return config_doc[env_value]
+        
+        # If no specific environment found, raise an error
+        available_envs = []
+        for config_doc in all_configs:
+            available_envs.extend(config_doc.keys())
+        
+        raise ValueError(f"Environment '{env_value}' not found in configuration. Available environments: {available_envs}")
 
     @classmethod
     def _validate_config(cls, config: Dict[str, Any]) -> None:
@@ -302,16 +305,23 @@ class BaseLogger(Logger):
 
     def _parse_file_size(self, size_str: str) -> int:
         """Parse file size string to bytes."""
-        size_str = size_str.upper()
-        multipliers = {'B': 1, 'KB': 1024, 'MB': 1024**2, 'GB': 1024**3}
+        size_str = size_str.upper().strip()
+        # Check longer suffixes first to avoid partial matches
+        multipliers = [('GB', 1024**3), ('MB', 1024**2), ('KB', 1024), ('B', 1)]
 
-        for suffix, multiplier in multipliers.items():
+        for suffix, multiplier in multipliers:
             if size_str.endswith(suffix):
-                number = size_str[:-len(suffix)]
-                return int(float(number) * multiplier)
+                number_str = size_str[:-len(suffix)].strip()
+                try:
+                    return int(float(number_str) * multiplier)
+                except ValueError:
+                    raise ValueError(f"Invalid size format: '{size_str}'. Expected format: '<number><unit>' (e.g., '10MB', '5.5GB')")
 
-        # Default to bytes if no suffix
-        return int(size_str)
+        # Try to parse as plain number (bytes)
+        try:
+            return int(float(size_str))
+        except ValueError:
+            raise ValueError(f"Invalid size format: '{size_str}'. Expected format: '<number><unit>' (e.g., '10MB') or plain number for bytes")
 
     # Implementation of abstract methods
     def debug(self, message: str, *args, **kwargs) -> None:

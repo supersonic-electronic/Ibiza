@@ -77,3 +77,6 @@ output/
 
 # Logs
 *.log
+
+# LibreOffice lock files
+.~lock.*#

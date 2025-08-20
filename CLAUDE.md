@@ -6,6 +6,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 This is **Ibiza**, a Python financial data management system focused on futures contracts. It's built as an enterprise-grade modular system for managing, processing, and analyzing futures market data with sophisticated configuration management, logging, and data handling capabilities.
 
+**Inspiration**: This project draws architectural inspiration from [pysystemtrade](https://github.com/robcarver17/pysystemtrade/) while implementing a custom system tailored to specific requirements and design principles.
+
+**Important Note on pysystemtrade Usage**: The pysystemtrade repository should ONLY be used as inspiration and reference - never copy code directly. Always rely on the specific use cases of the existing Ibiza project and the instructions provided. If you discover useful design patterns or implementation ideas from pysystemtrade, highlight them and ask for approval before implementing similar concepts in this codebase.
+
 ## Development Philosophy and Guidelines
 
 ### Code Development Principles
@@ -65,7 +69,7 @@ poetry update
 **Note**: The system is in active development. Several core components referenced in `main.py` are not yet implemented:
 - `src/config/config_manager.py` (missing)
 - `src/data/futures_data_manager.py` (missing)
-- `src/core/futures_objects.py` (empty - prototype objects exist in `test.py`)
+- `src/core/futures_objects.py` (removed - objects moved to `src/objects/`)
 - `src/core/constants.py` (empty)
 
 ### Core Components
@@ -94,7 +98,13 @@ poetry update
 4. **Core Utilities** (`src/core/`)
    - **utils.py**: Path handling, file operations, metadata extraction utilities
    - **logger.py**: Enterprise logging factory with environment-based configurations
-   - **Domain Objects**: (To be implemented) Immutable dataclasses for futures and contracts
+   - **date_utilities.py**: Date and time handling utilities
+   - **misc_utils.py**: General utility functions
+
+5. **Domain Objects** (`src/objects/`)
+   - **Futures and Contract Objects**: Immutable dataclasses for financial instruments
+   - **Roll Parameter Management**: Business logic for contract rolling
+   - **Market Calendar Integration**: Holiday and trading day handling
 
 ### Design Pattern Implementation
 
@@ -174,3 +184,9 @@ Configuration Objects (dataclasses):
 - Production configuration expects logs in `/var/log/application/`
 - Parquet files use Snappy compression by default for optimal storage
 - Thread-safe operations throughout for enterprise deployment
+
+## Repository and Version Control
+
+- **GitHub Repository**: https://github.com/supersonic-electronic/Ibiza.git
+- **Main Branch**: `main` (primary development and deployment branch)
+- **README.md**: Comprehensive project documentation for users and contributors
