@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Ibiza{% endblock %} - Financial Data Management System</title>
+    
+    <!-- Base Styles -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/enhanced-dashboard.css') }}?v=3">
+    {% block additional_css %}{% endblock %}
+    
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    
+    <!-- Meta -->
+    <meta name="description" content="{% block description %}Ibiza Financial Data Management System - Professional Futures Trading Analysis{% endblock %}">
+    <meta name="author" content="Ibiza Development Team">
+    
+    <!-- Favicon -->
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E{% block favicon %}📊{% endblock %}%3C/text%3E%3C/svg%3E">
+    
+    {% block additional_head %}{% endblock %}
+</head>
+<body data-theme="midnight">
+    <div class="dashboard-container">
+        
+        <!-- Sidebar Navigation -->
+        {% set current_page = current_page or 'dashboard' %}
+        {% include '_navigation.html' %}
+
+        <!-- Header -->
+        <header class="dashboard-header">
+            <div class="header-content">
+                <div class="header-brand">
+                    <div class="brand-logo">
+                        {% block header_logo %}
+                        <img src="{{ url_for('static', filename='images/ibiza.png') }}" 
+                             alt="Ibiza Alpha Detection System" 
+                             class="logo-image"
+                             width="180" 
+                             height="auto">
+                        {% endblock %}
+                    </div>
+                    <div class="brand-text">
+                        <h1 class="header-title gradient-text">
+                            <span class="brand-name">{% block page_title %}IBIZA{% endblock %}</span>
+                            <span class="brand-tagline">{% block page_subtitle %}FINANCIAL DATA MANAGEMENT{% endblock %}</span>
+                        </h1>
+                        <p class="header-subtitle">
+                            {% block page_description %}Professional futures trading analysis and data visualization{% endblock %}
+                        </p>
+                    </div>
+                </div>
+                
+                {% block header_actions %}
+                <!-- Page-specific header actions -->
+                {% endblock %}
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <main class="dashboard-main">
+            {% block content %}
+            <div class="content-placeholder">
+                <h2>Welcome to Ibiza</h2>
+                <p>Override the content block to add page-specific content.</p>
+            </div>
+            {% endblock %}
+        </main>
+    </div>
+
+    <!-- Modals and Overlays -->
+    {% block modals %}{% endblock %}
+
+    <!-- Scripts -->
+    <script src="{{ url_for('static', filename='js/enhanced-dashboard.js') }}?v=2"></script>
+    
+    <!-- Global Theme Loading -->
+    <script>
+        // Load saved theme preference on all pages
+        document.addEventListener('DOMContentLoaded', function() {
+            const savedTheme = localStorage.getItem('ibiza-theme') || 'midnight';
+            document.body.setAttribute('data-theme', savedTheme);
+            document.documentElement.setAttribute('data-theme', savedTheme);
+        });
+    </script>
+    
+    {% block additional_scripts %}{% endblock %}
+</body>
+</html>
