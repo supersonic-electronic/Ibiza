@@ -2751,6 +2751,52 @@ def api_available_futures_markets():
             'error': str(e)
         }), 500
 
+def build_contract_metadata_map(market):
+    """
+    Build a comprehensive mapping from contract codes to actual metadata.
+    This replaces all hardcoded year parsing with LAST_TRADEABLE_DT from metadata.
+    
+    Returns: dict mapping contract codes to expiration dates and metadata
+    """
+    try:
+        # Get the appropriate metadata file
+        if 'Index' in market:
+            contract_file = f"data/futures/unmerged_meta/{market}_contract_data.parquet"
+        else:
+            contract_file = f"data/futures/unmerged_meta/{market}_contract_data.parquet"
+        
+        if not os.path.exists(contract_file):
+            return {}
+        
+        # Load contract metadata
+        df = pd.read_parquet(contract_file)
+        
+        contract_map = {}
+        for _, row in df.iterrows():
+            security = row['security']
+            contract_code = security.replace(' Index', '').replace(' Comdty', '')
+            
+            # Use actual expiration date from metadata
+            expiry_date = row['LAST_TRADEABLE_DT']
+            if pd.isna(expiry_date):
+                continue
+                
+            contract_map[contract_code] = {
+                'expiry_date': expiry_date,
+                'fut_month_yr': row.get('FUT_MONTH_YR', ''),
+                'long_name': row.get('FUT_LONG_NAME', ''),
+                'exchange': row.get('FUT_EXCH_NAME_SHRT', ''),
+                'security': security,
+                'roll_date': row.get('FUT_ROLL_DT'),
+                'delivery_date': row.get('FUT_DLV_DT_LAST')
+            }
+            
+        return contract_map
+        
+    except Exception as e:
+        print(f"Error building contract metadata map for {market}: {e}")
+        return {}
+
 def generate_contracts_from_metadata(market):
     """Generate contracts from metadata using DuckDB for accurate information"""
     try:
@@ -2797,14 +2843,18 @@ def generate_contracts_from_metadata(market):
                 month_year_str = row['FUT_MONTH_YR']
                 month_name, year_str = month_year_str.split()
                 
-                # Convert 2-digit year to full year
-                year_num = int(year_str)
-                if year_num >= 90:  # 1990-1999
-                    year = 1900 + year_num
-                else:  # 2000-2089
-                    year = 2000 + year_num
+                # FIXED: Use actual expiry date from metadata - no hardcoded year parsing!
+                expiry_date = row['LAST_TRADEABLE_DT']
+                if pd.isna(expiry_date):
+                    print(f"Missing LAST_TRADEABLE_DT for {contract_code}, skipping")
+                    continue
+                
+                # Get year from actual expiry date
+                expiry_dt = pd.to_datetime(expiry_date)
+                year = expiry_dt.year
+                expiry_str = expiry_dt.strftime('%Y-%m-%d')
                     
-                # Extract month code from contract code
+                # Extract month code from contract code for display
                 if len(contract_code) >= 3:
                     if len(contract_code) >= 4 and contract_code[-2:].isdigit():
                         month_code = contract_code[-3]
@@ -2813,18 +2863,12 @@ def generate_contracts_from_metadata(market):
                 else:
                     month_code = 'Unknown'
                 
-                # Use actual expiry date from metadata
-                expiry_date = row['LAST_TRADEABLE_DT']
-                if pd.isna(expiry_date):
-                    expiry_date = f"{year}-{month_name_to_number(month_name):02d}-15"
-                else:
-                    expiry_date = pd.to_datetime(expiry_date).strftime('%Y-%m-%d')
-                
                 contracts.append({
                     'symbol': contract_code,
                     'contract_id': contract_code,
-                    'expiry_date': expiry_date,
-                    'last_trading_date': expiry_date,
+                    'expiry_date': expiry_str,
+                    'expiry': expiry_str,  # Add both fields for UI compatibility
+                    'last_trading_date': expiry_str,
                     'delivery_month': f"{month_name} {year}",
                     'month_code': month_code,
                     'year': year,
@@ -2860,8 +2904,11 @@ def month_name_to_number(month_name):
     return month_map.get(month_name.upper(), 1)
 
 def generate_contracts_from_data(market):
-    """Generate contracts from actual price data (fallback method)"""
+    """Generate contracts from actual price data with metadata lookup for expiry dates"""
     try:
+        # FIXED: Try to get metadata mapping first to avoid hardcoded year parsing
+        contract_map = build_contract_metadata_map(market)
+        
         # Look for price data file
         price_file = FUTURES_PRICE_DIR / f'{market}_prices.parquet'
         
@@ -2883,9 +2930,6 @@ def generate_contracts_from_data(market):
         
         contract_data.columns = ['security', 'first_date', 'last_date', 'data_points']
         
-        # Use all contracts - no date filtering to show historical data
-        recent_contracts = contract_data.copy()
-        
         # Parse contract information
         contracts = []
         month_names = {
@@ -2894,65 +2938,65 @@ def generate_contracts_from_data(market):
             'N': 'July', 'Q': 'August', 'V': 'October', 'X': 'November'
         }
         
-        for _, row in recent_contracts.iterrows():
+        for _, row in contract_data.iterrows():
             security = row['security']
             
             # Extract contract details from security name (e.g., "ESH5 Index" -> "ESH5")
             contract_code = security.replace(' Index', '').replace(' Comdty', '')
             
-            # Parse month and year from contract code
-            if len(contract_code) >= 3:
-                # Handle different contract code patterns
-                if len(contract_code) >= 4 and contract_code[-2:].isdigit():
-                    # Two-digit year pattern: ESH00, ESH24, etc.
-                    base_symbol = contract_code[:-3]  # e.g., "ES"
-                    month_code = contract_code[-3]    # e.g., "H"
-                    year_suffix = contract_code[-2:]  # e.g., "00", "24"
-                    
-                    # Map year suffix to full year
-                    year_num = int(year_suffix)
-                    if year_num >= 90:  # 1990-1999
-                        year = 1900 + year_num
-                    else:  # 2000-2089
-                        year = 2000 + year_num
-                        
-                elif len(contract_code) >= 3 and contract_code[-1].isdigit():
-                    # Single-digit year pattern: ESH0, ESH5, etc.
-                    base_symbol = contract_code[:-2]  # e.g., "ES"
-                    month_code = contract_code[-2]    # e.g., "H"
-                    year_digit = int(contract_code[-1])  # e.g., "0", "5"
-                    
-                    # Map single digit based on actual data patterns:
-                    # 4 -> 2024, 0,5,6,7,8,9 -> 2025 (based on expiry dates in data)
-                    if year_digit == 4:
-                        year = 2024
-                    elif year_digit in [0, 5, 6, 7, 8, 9]:
-                        year = 2025
+            # FIXED: Try to get expiry date from metadata first
+            if contract_code in contract_map:
+                # Use actual expiry date from metadata - no hardcoded parsing!
+                metadata = contract_map[contract_code]
+                expiry_date = metadata['expiry_date']
+                expiry_str = pd.to_datetime(expiry_date).strftime('%Y-%m-%d')
+                year = pd.to_datetime(expiry_date).year
+                
+                # Extract month code for display
+                month_code = 'Unknown'
+                if len(contract_code) >= 3:
+                    if len(contract_code) >= 4 and contract_code[-2:].isdigit():
+                        month_code = contract_code[-3]
                     else:
-                        # Future years: 1,2,3 -> 2026,2027,2028
-                        year = 2025 + year_digit
-                else:
-                    # Fallback for unexpected patterns
-                    base_symbol = contract_code[:-2]
-                    month_code = contract_code[-2]
-                    year = datetime.now().year
+                        month_code = contract_code[-2]
                 
                 month_name = month_names.get(month_code, 'Unknown')
                 
-                contracts.append({
-                    'symbol': contract_code,
-                    'contract_id': contract_code,
-                    'expiry_date': row['last_date'].strftime('%Y-%m-%d'),
-                    'last_trading_date': (pd.to_datetime(row['last_date']) - timedelta(days=1)).strftime('%Y-%m-%d'),
-                    'delivery_month': f"{month_name} {year}",
-                    'month_code': month_code,
-                    'year': year,
-                    'displayName': f"{contract_code} ({month_name} {year})",
-                    'contractName': contract_code,
-                    'underlying': market,
-                    'isActive': True,
-                    'data_points': int(row['data_points']),
-                    'first_date': row['first_date'].strftime('%Y-%m-%d'),
+            else:
+                # Fallback: use last trading date from price data (less accurate)
+                print(f"Warning: No metadata found for {contract_code}, using price data dates")
+                expiry_str = row['last_date'].strftime('%Y-%m-%d')
+                
+                # Extract month code for display (no hardcoded year parsing)
+                month_code = 'Unknown'
+                if len(contract_code) >= 3:
+                    if len(contract_code) >= 4 and contract_code[-2:].isdigit():
+                        month_code = contract_code[-3]
+                    elif contract_code[-1].isdigit():
+                        month_code = contract_code[-2]
+                    else:
+                        month_code = contract_code[-2] if len(contract_code) >= 2 else 'U'
+                
+                # Use actual year from price data (last_date)
+                year = row['last_date'].year
+                
+                month_name = month_names.get(month_code, 'Unknown')
+                
+            contracts.append({
+                'symbol': contract_code,
+                'contract_id': contract_code,
+                'expiry_date': expiry_str,
+                'expiry': expiry_str,  # Add both fields for UI compatibility
+                'last_trading_date': expiry_str,
+                'delivery_month': f"{month_name} {year}",
+                'month_code': month_code,
+                'year': year,
+                'displayName': f"{contract_code} ({month_name} {year})",
+                'contractName': contract_code,
+                'underlying': market,
+                'isActive': pd.to_datetime(expiry_str) > pd.Timestamp.now(),
+                'data_points': int(row['data_points']),
+                'first_date': row['first_date'].strftime('%Y-%m-%d'),
                     'last_date': row['last_date'].strftime('%Y-%m-%d')
                 })
         
@@ -2965,20 +3009,31 @@ def generate_contracts_from_data(market):
         return generate_mock_contracts(market)  # Fall back to mock
 
 def generate_mock_contracts(market):
-    """Generate realistic mock contracts for a given market"""
+    """Generate realistic mock contracts based on actual futures market patterns"""
     from datetime import datetime, timedelta
     import calendar
     
     # Clean market symbol for contract generation
     base_symbol = market.replace(' Index', '').replace(' Comdty', '').replace('1', '')
     
-    # Contract month codes
-    month_codes = {
-        'H': ('March', 3),
-        'M': ('June', 6), 
-        'U': ('September', 9),
-        'Z': ('December', 12)
+    # Realistic contract month codes based on actual market trading
+    market_specific_months = {
+        'ES': {'H': ('March', 3), 'M': ('June', 6), 'U': ('September', 9), 'Z': ('December', 12)},
+        'CL': {'F': ('January', 1), 'G': ('February', 2), 'H': ('March', 3), 'J': ('April', 4), 
+               'K': ('May', 5), 'M': ('June', 6), 'N': ('July', 7), 'Q': ('August', 8),
+               'U': ('September', 9), 'V': ('October', 10), 'X': ('November', 11), 'Z': ('December', 12)},
+        'GC': {'G': ('February', 2), 'J': ('April', 4), 'M': ('June', 6), 'Q': ('August', 8), 
+               'V': ('October', 10), 'Z': ('December', 12)},
+        'NG': {'F': ('January', 1), 'G': ('February', 2), 'H': ('March', 3), 'J': ('April', 4), 
+               'K': ('May', 5), 'M': ('June', 6), 'N': ('July', 7), 'Q': ('August', 8),
+               'U': ('September', 9), 'V': ('October', 10), 'X': ('November', 11), 'Z': ('December', 12)}
     }
+    
+    # Default quarterly contracts for unknown markets
+    default_months = {'H': ('March', 3), 'M': ('June', 6), 'U': ('September', 9), 'Z': ('December', 12)}
+    
+    # Select appropriate month codes
+    month_codes = market_specific_months.get(base_symbol, default_months)
     
     contracts = []
     current_year = datetime.now().year
@@ -2999,6 +3054,7 @@ def generate_mock_contracts(market):
                     'symbol': contract_symbol,
                     'contract_id': contract_symbol,
                     'expiry_date': expiry_date.strftime('%Y-%m-%d'),
+                    'expiry': expiry_date.strftime('%Y-%m-%d'),  # Add both fields for compatibility
                     'last_trading_date': last_trading_date.strftime('%Y-%m-%d'),
                     'delivery_month': f"{month_name} {year}",
                     'month_code': code,
@@ -3006,7 +3062,9 @@ def generate_mock_contracts(market):
                     'displayName': f"{contract_symbol} ({month_name} {year})",
                     'contractName': contract_symbol,
                     'underlying': market,
-                    'isActive': True
+                    'isActive': True,
+                    'long_name': f"Mock {market} Future",
+                    'exchange': 'Mock Exchange'
                 })
     
     return sorted(contracts, key=lambda x: x['expiry_date'])[:12]  # Return next 12 contracts
