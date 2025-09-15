@@ -1,0 +1,343 @@
+{% extends "_base.html" %}
+
+{% block title %}Charts{% endblock %}
+{% set current_page = 'charts' %}
+{% block favicon %}📈{% endblock %}
+{% block description %}Ibiza Charts - Advanced Financial Data Visualization{% endblock %}
+
+{% block additional_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/futures-charts.css') }}?v=1">
+{% endblock %}
+
+{% block additional_head %}
+<!-- Chart.js and plugins for advanced financial charting -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-chart-financial@0.2.1/dist/chartjs-chart-financial.min.js"></script>
+{% endblock %}
+{% block page_title %}CHARTS{% endblock %}
+{% block page_subtitle %}ADVANCED FINANCIAL VISUALIZATION{% endblock %}
+{% block page_description %}Interactive price charts with multi-asset analysis{% endblock %}
+
+
+{% block quick_actions %}
+<button id="resetChart" class="btn btn-secondary btn-sm">
+    <i class="fas fa-redo"></i>
+    Reset Chart
+</button>
+<button id="exportChart" class="btn btn-primary btn-sm">
+    <i class="fas fa-download"></i>
+    Export PNG
+</button>
+{% endblock %}
+
+{% block content %}
+            <div class="charts-container">
+                <!-- Chart Controls Section -->
+                <section class="chart-controls">
+                    <div class="section-header">
+                        <h2 class="section-title">
+                            <i class="fas fa-cogs"></i>
+                            Chart Configuration
+                        </h2>
+                        <p class="section-subtitle">
+                            Select futures market, contract, and display options
+                        </p>
+                    </div>
+
+                    <div class="controls-grid">
+                        <!-- Futures Market Selection -->
+                        <div class="control-card">
+                            <div class="card-header">
+                                <h3 class="card-title">
+                                    <i class="fas fa-layer-group"></i>
+                                    Futures Market
+                                </h3>
+                                <span class="market-status" id="marketStatus">Ready</span>
+                            </div>
+                            <div class="card-content">
+                                <div class="market-search">
+                                    <input type="text" 
+                                           id="marketSearch" 
+                                           class="search-input" 
+                                           placeholder="Search markets (ES1, CL1, GC1...)">
+                                    <div class="search-icon">
+                                        <i class="fas fa-search"></i>
+                                    </div>
+                                </div>
+                                
+                                <div class="market-categories">
+                                    <button class="category-btn active" data-category="all">All</button>
+                                    <button class="category-btn" data-category="equity">Equity</button>
+                                    <button class="category-btn" data-category="commodity">Commodity</button>
+                                    <button class="category-btn" data-category="currency">Currency</button>
+                                </div>
+                                
+                                <div class="market-list" id="marketList">
+                                    <!-- Market list will be populated dynamically -->
+                                </div>
+                                
+                                <div class="selected-market" id="selectedMarket" style="display: none;">
+                                    <h4>Selected Market:</h4>
+                                    <div class="market-tag" id="marketTag"></div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Contract Selection -->
+                        <div class="control-card">
+                            <div class="card-header">
+                                <h3 class="card-title">
+                                    <i class="fas fa-calendar-alt"></i>
+                                    Contract Selection
+                                </h3>
+                                <div class="card-actions">
+                                    <button class="btn btn-secondary btn-sm" id="refreshContracts" title="Refresh contract data">
+                                        <i class="fas fa-sync-alt"></i>
+                                        Refresh
+                                    </button>
+                                    <span class="contract-count" id="contractCount">0 contracts</span>
+                                </div>
+                            </div>
+                            <div class="card-content">
+                                <div class="contract-filters">
+                                    <div class="filter-group">
+                                        <label for="contractYear">Year:</label>
+                                        <select id="contractYear" class="filter-select" disabled>
+                                            <option value="">Select Year</option>
+                                        </select>
+                                    </div>
+                                    <div class="filter-group">
+                                        <label for="contractMonth">Month:</label>
+                                        <select id="contractMonth" class="filter-select" disabled>
+                                            <option value="">All Months</option>
+                                            <option value="H">March (H)</option>
+                                            <option value="M">June (M)</option>
+                                            <option value="U">September (U)</option>
+                                            <option value="Z">December (Z)</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                
+                                <div class="contract-list" id="contractList">
+                                    <!-- Contract list will be populated dynamically -->
+                                </div>
+                                
+                                <div class="selected-contracts" id="selectedContracts" style="display: none;">
+                                    <h4>Selected Contracts:</h4>
+                                    <div class="contract-tags" id="contractTags"></div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Chart Options -->
+                        <div class="control-card">
+                            <div class="card-header">
+                                <h3 class="card-title">
+                                    <i class="fas fa-chart-bar"></i>
+                                    Chart Options
+                                </h3>
+                                <button class="btn btn-primary" id="loadChart" disabled>
+                                    <i class="fas fa-play"></i>
+                                    Load Chart
+                                </button>
+                            </div>
+                            <div class="card-content">
+                                <div class="chart-config">
+                                    <div class="config-group">
+                                        <label for="chartType">Chart Type:</label>
+                                        <select id="chartType" class="config-select">
+                                            <option value="line">Line Chart</option>
+                                            <option value="candlestick">Candlestick</option>
+                                            <option value="ohlc">OHLC Bars</option>
+                                        </select>
+                                    </div>
+                                    
+                                    <div class="config-group">
+                                        <label for="priceType">Price Display:</label>
+                                        <select id="priceType" class="config-select">
+                                            <option value="last">Last Price</option>
+                                            <option value="bid_ask">Bid/Ask Spread</option>
+                                            <option value="all">All Prices</option>
+                                        </select>
+                                    </div>
+                                    
+                                    <div class="config-group">
+                                        <label for="dateRange">Date Range:</label>
+                                        <select id="dateRange" class="config-select">
+                                            <option value="1M">Last Month</option>
+                                            <option value="3M">Last 3 Months</option>
+                                            <option value="6M">Last 6 Months</option>
+                                            <option value="1Y">Last Year</option>
+                                            <option value="all">All Available</option>
+                                            <option value="custom">Custom Range</option>
+                                        </select>
+                                    </div>
+                                    
+                                    <div class="custom-date-range" id="customDateRange" style="display: none;">
+                                        <div class="date-inputs">
+                                            <input type="date" id="startDate" class="date-input">
+                                            <span>to</span>
+                                            <input type="date" id="endDate" class="date-input">
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Chart Display Section -->
+                <section class="chart-display" id="chartSection" style="display: none;">
+                    <div class="section-header">
+                        <h2 class="section-title">
+                            <i class="fas fa-chart-line"></i>
+                            Price Chart
+                        </h2>
+                        <div class="chart-info">
+                            <div class="chart-details" id="chartDetails"></div>
+                            <div class="chart-actions">
+                                <button class="btn btn-secondary btn-sm" id="toggleGrid">
+                                    <i class="fas fa-th"></i>
+                                    Toggle Grid
+                                </button>
+                                <button class="btn btn-secondary btn-sm" id="zoomReset">
+                                    <i class="fas fa-search-minus"></i>
+                                    Reset Zoom
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="chart-container">
+                        <div class="chart-wrapper">
+                            <canvas id="priceChart" width="800" height="400"></canvas>
+                        </div>
+                        
+                        <div class="chart-legend" id="chartLegend">
+                            <!-- Legend will be populated dynamically -->
+                        </div>
+                    </div>
+                    
+                    <!-- Price Statistics -->
+                    <div class="price-stats" id="priceStats" style="display: none;">
+                        <div class="stats-grid">
+                            <div class="stat-item">
+                                <span class="stat-label">Current Price</span>
+                                <span class="stat-value" id="currentPrice">--</span>
+                            </div>
+                            <div class="stat-item">
+                                <span class="stat-label">Daily Change</span>
+                                <span class="stat-value" id="dailyChange">--</span>
+                            </div>
+                            <div class="stat-item">
+                                <span class="stat-label">High</span>
+                                <span class="stat-value" id="dayHigh">--</span>
+                            </div>
+                            <div class="stat-item">
+                                <span class="stat-label">Low</span>
+                                <span class="stat-value" id="dayLow">--</span>
+                            </div>
+                            <div class="stat-item">
+                                <span class="stat-label">Volume</span>
+                                <span class="stat-value" id="volume">--</span>
+                            </div>
+                            <div class="stat-item">
+                                <span class="stat-label">Bid/Ask Spread</span>
+                                <span class="stat-value" id="bidAskSpread">--</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Futures Market Metadata -->
+                    <div class="futures-metadata" id="futuresMetadata" style="display: none;">
+                        <div class="metadata-header">
+                            <h3>
+                                <i class="fas fa-info-circle"></i>
+                                Market Information
+                            </h3>
+                            <span class="metadata-subtitle" id="marketName">--</span>
+                        </div>
+                        
+                        <div class="metadata-grid">
+                            <!-- Contract Specifications -->
+                            <div class="metadata-card">
+                                <h4><i class="fas fa-file-contract"></i> Contract Specifications</h4>
+                                <div class="metadata-row">
+                                    <span class="metadata-label">Contract Size:</span>
+                                    <span class="metadata-value" id="contractSize">--</span>
+                                </div>
+                                <div class="metadata-row">
+                                    <span class="metadata-label">Tick Size:</span>
+                                    <span class="metadata-value" id="tickSize">--</span>
+                                </div>
+                                <div class="metadata-row">
+                                    <span class="metadata-label">Tick Value:</span>
+                                    <span class="metadata-value" id="tickValue">--</span>
+                                </div>
+                                <div class="metadata-row">
+                                    <span class="metadata-label">Point Value:</span>
+                                    <span class="metadata-value" id="pointValue">--</span>
+                                </div>
+                            </div>
+                            
+                            <!-- Trading Information -->
+                            <div class="metadata-card">
+                                <h4><i class="fas fa-clock"></i> Trading Information</h4>
+                                <div class="metadata-row">
+                                    <span class="metadata-label">Exchange:</span>
+                                    <span class="metadata-value" id="exchange">--</span>
+                                </div>
+                                <div class="metadata-row">
+                                    <span class="metadata-label">Trading Hours:</span>
+                                    <span class="metadata-value" id="tradingHours">--</span>
+                                </div>
+                                <div class="metadata-row">
+                                    <span class="metadata-label">Trading Months:</span>
+                                    <span class="metadata-value" id="tradingMonths">--</span>
+                                </div>
+                                <div class="metadata-row">
+                                    <span class="metadata-label">Category:</span>
+                                    <span class="metadata-value" id="category">--</span>
+                                </div>
+                            </div>
+                            
+                            <!-- Market Data -->
+                            <div class="metadata-card">
+                                <h4><i class="fas fa-chart-line"></i> Market Data</h4>
+                                <div class="metadata-row">
+                                    <span class="metadata-label">Available Contracts:</span>
+                                    <span class="metadata-value" id="availableContracts">--</span>
+                                </div>
+                                <div class="metadata-row">
+                                    <span class="metadata-label">Data Range:</span>
+                                    <span class="metadata-value" id="dataRange">--</span>
+                                </div>
+                                <div class="metadata-row">
+                                    <span class="metadata-label">Price Multiplier:</span>
+                                    <span class="metadata-value" id="priceMultiplier">--</span>
+                                </div>
+                                <div class="metadata-row">
+                                    <span class="metadata-label">Currency:</span>
+                                    <span class="metadata-value" id="currency">--</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+            </div>
+{% endblock %}
+
+{% block modals %}
+<!-- Loading Overlay -->
+<div class="loading-overlay" id="loadingOverlay" style="display: none;">
+    <div class="loading-spinner">
+        <div class="spinner"></div>
+        <p>Loading chart data...</p>
+    </div>
+</div>
+{% endblock %}
+
+{% block additional_scripts %}
+<script src="{{ url_for('static', filename='js/futures-charts.js') }}?v=1"></script>
+{% endblock %}

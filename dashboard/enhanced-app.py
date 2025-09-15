@@ -8,8 +8,9 @@ import os
 import sys
 import subprocess
 import json
+import hashlib
 from pathlib import Path
-from flask import Flask, render_template_string, render_template, send_from_directory, redirect, url_for, jsonify, request
+from flask import Flask, render_template_string, render_template, send_from_directory, redirect, url_for, jsonify, request, make_response
 import pandas as pd
 import numpy as np
 from datetime import datetime, timedelta
@@ -30,6 +31,25 @@ app = Flask(__name__)
 DATA_DIR = Path('../data')
 FUTURES_PRICE_DIR = DATA_DIR / 'futures' / 'contract_prices'
 FUTURES_META_DIR = DATA_DIR / 'futures' / 'unmerged_meta'
+
+# Cache-busting utilities
+def get_file_mtime(file_path):
+    """Get file modification time"""
+    path = Path(file_path)
+    return path.stat().st_mtime if path.exists() else 0
+
+def generate_etag(*file_paths):
+    """Generate ETag based on file modification times"""
+    mtimes = [str(get_file_mtime(fp)) for fp in file_paths]
+    combined = ''.join(mtimes)
+    return hashlib.md5(combined.encode()).hexdigest()[:16]
+
+def add_cache_headers(response, max_age=0):
+    """Add cache control headers to prevent browser caching of stale data"""
+    response.headers['Cache-Control'] = f'no-cache, no-store, must-revalidate, max-age={max_age}'
+    response.headers['Pragma'] = 'no-cache'
+    response.headers['Expires'] = '0'
+    return response
 
 # Market descriptions mapping
 def get_market_description(symbol):
@@ -3233,16 +3253,36 @@ def format_trading_months(months_str):
 def api_futures_contracts(market):
     """API endpoint that returns available contracts for a specific market."""
     try:
+        # Check for file modification times for cache validation
+        metadata_file = FUTURES_META_DIR / f'{market}_contract_data.parquet'
+        price_files = list(FUTURES_PRICE_DIR.glob(f'{market}*_prices.parquet'))
+        
+        # Generate ETag based on relevant files
+        relevant_files = [str(metadata_file)] + [str(pf) for pf in price_files[:1]]  # Only first price file
+        etag = generate_etag(*relevant_files)
+        
+        # Check If-None-Match header for conditional requests
+        if request.headers.get('If-None-Match') == etag:
+            response = make_response('', 304)
+            response.headers['ETag'] = etag
+            return response
+        
         # Use metadata-based contract generation first (most accurate)
         contracts = generate_contracts_from_metadata(market)
         
         if contracts and len(contracts) > 0:
-            return jsonify({
+            data = {
                 'status': 'success',
                 'contracts': contracts,
                 'total_count': len(contracts),
-                'data_source': 'metadata'
-            })
+                'data_source': 'metadata',
+                'last_modified': get_file_mtime(metadata_file),
+                'etag': etag,
+                'timestamp': datetime.now().isoformat()
+            }
+            response = make_response(jsonify(data))
+            response.headers['ETag'] = etag
+            return add_cache_headers(response)
         
         # Fallback to legacy contract file method
         contract_file = FUTURES_META_DIR / f'{market}_contract_data.parquet'
@@ -3269,12 +3309,17 @@ def api_futures_contracts(market):
                             }
                             contracts.append(contract_info)
                         
-                        return jsonify({
+                        data = {
                             'status': 'success',
                             'market': market,
                             'contracts': contracts,
-                            'total_count': len(contracts)
-                        })
+                            'total_count': len(contracts),
+                            'data_source': 'legacy_file',
+                            'last_modified': get_file_mtime(contract_file),
+                            'timestamp': datetime.now().isoformat()
+                        }
+                        response = make_response(jsonify(data))
+                        return add_cache_headers(response)
             except Exception as e:
                 print(f"Error reading contract file: {e}")
                 pass  # Fall through to mock data generation
@@ -3282,19 +3327,26 @@ def api_futures_contracts(market):
         # Generate contracts from actual price data
         contracts = generate_contracts_from_data(market)
         
-        return jsonify({
+        data = {
             'status': 'success',
             'market': market,
             'contracts': contracts,
             'total_count': len(contracts),
-            'note': 'Generated from actual price data' if contracts else 'Using mock data'
-        })
+            'data_source': 'price_data',
+            'note': 'Generated from actual price data' if contracts else 'Using mock data',
+            'timestamp': datetime.now().isoformat()
+        }
+        response = make_response(jsonify(data))
+        return add_cache_headers(response)
             
     except Exception as e:
-        return jsonify({
+        data = {
             'status': 'error',
-            'error': str(e)
-        }), 500
+            'error': str(e),
+            'timestamp': datetime.now().isoformat()
+        }
+        response = make_response(jsonify(data), 500)
+        return add_cache_headers(response)
 
 @app.route('/api/futures-chart-data', methods=['POST'])
 def api_futures_chart_data():
